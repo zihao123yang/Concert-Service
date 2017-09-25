@@ -30,7 +30,7 @@ public class Reservation {
 
     private LocalDateTime _date;
 
-    @OneToMany(cascade=CascadeType.ALL)
+    @OneToMany(cascade=CascadeType.PERSIST)
     private Set<Seat> _seats;
 
     private Long _timestamp;

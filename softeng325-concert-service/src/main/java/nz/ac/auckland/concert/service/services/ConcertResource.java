@@ -248,10 +248,14 @@ public class ConcertResource {
                     .build());
         }
 
+        List<Seat.SeatStatus> statusList = new ArrayList<>();
+        statusList.add(Seat.SeatStatus.Booked);
+        statusList.add(Seat.SeatStatus.Reserved);
         //load all the seats that have been booked on the date specified by the reservation request
         //selecting by the date and time because there shouldn't be multiple concerts on at the same time
-        TypedQuery<Seat> query = entityManager.createQuery("select s from Seat s where s._date = :date", Seat.class)
-                .setParameter("date", reservationRequest.getDate());
+        TypedQuery<Seat> query = entityManager.createQuery("select s from Seat s where s._date = :date and s._status in :statusList", Seat.class)
+                .setParameter("date", reservationRequest.getDate())
+                .setParameter("statusList", statusList);
         List<Seat> seatsList = query.getResultList();
         //convert the List of Seats that have already been booked or reserved to a Set of SeatDTOs using method from the Mapper class
         Set<Seat> seats = new HashSet<>(seatsList);
@@ -264,11 +268,21 @@ public class ConcertResource {
                     .status(Response.Status.BAD_REQUEST).entity(Messages.INSUFFICIENT_SEATS_AVAILABLE_FOR_RESERVATION)
                     .build());
         }
+        Set<Seat> reservedSeats = new HashSet<>();
+        for (SeatDTO s : availableSeats) {
+            TypedQuery<Seat> reserveQuery = entityManager.createQuery("select s from Seat s where s._seatRow = :seatRow and s._seatNumber = :seatNumber and s._date = :date", Seat.class)
+                    .setParameter("seatRow", s.getRow())
+                    .setParameter("seatNumber",s.getNumber())
+                    .setParameter("date", reservationRequest.getDate());
+            Seat seat = reserveQuery.getSingleResult();
+            seat.setReserved();
+            reservedSeats.add(seat);
+        }
 
         //convert the Set of SeatDTOs to be reserved to a Set of Seats
-        Set<Seat> seatsToReserve = Mapper.seatDTOsToSeats(availableSeats, reservationRequest.getDate());
+//        Set<Seat> seatsToReserve = Mapper.seatDTOsToSeats(availableSeats, reservationRequest.getDate());
         //create the reservation on the free seats obtained previously
-        Reservation reservation = new Reservation(reservationRequest.getNumberOfSeats(), reservationRequest.getSeatType(),reservationRequest.getDate(), seatsToReserve, concert, authentication.getUser(), timestamp.getTime());
+        Reservation reservation = new Reservation(reservationRequest.getNumberOfSeats(), reservationRequest.getSeatType(),reservationRequest.getDate(), reservedSeats, concert, authentication.getUser(), timestamp.getTime());
 
         entityManager.persist(reservation);
 
@@ -278,7 +292,6 @@ public class ConcertResource {
         Response.ResponseBuilder builder;
         builder = Response.status(201);
         builder.entity(reservationDTO);
-        System.out.println(reservationDTO.getId() + " " + reservationDTO.getSeats().size());
 
         transaction.commit();
         entityManager.close();
@@ -293,7 +306,6 @@ public class ConcertResource {
     public Response confirmReservation(ReservationDTO reservationDTO, @CookieParam("userToken") Cookie cookie) {
 
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-        System.out.println("reservation timestamp: " + timestamp.getTime());
         EntityTransaction transaction = entityManager.getTransaction();
         transaction.begin();
 
@@ -328,8 +340,13 @@ public class ConcertResource {
                     .build());
         }
 
+        Set<Seat> reservedSeats = reservation.getSeats();
+        for (Seat s : reservedSeats) {
+            s.setBooked();
+            System.out.println("SeatRow:"+s.getRow() + "   seatnumber"+s.getNumber()+"     date:"+s.getDate());
+        }
+        Booking booking = new Booking(reservation.getConcert(), reservation.getDate(), reservedSeats, reservation.getPriceBand());
         entityManager.remove(reservation);
-        Booking booking = new Booking(reservation.getConcert(), reservation.getDate(), reservation.getSeats(), reservation.getPriceBand());
         entityManager.persist(booking);
         transaction.commit();
 
@@ -458,8 +475,5 @@ public class ConcertResource {
         AuthenticationDetail authenticationDetail = entityManager.find(AuthenticationDetail.class, token);
         return authenticationDetail;
     }
-
-
-
 
 }

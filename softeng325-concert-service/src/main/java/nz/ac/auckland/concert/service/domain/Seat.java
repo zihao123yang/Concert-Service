@@ -17,6 +17,10 @@ import java.time.LocalDateTime;
 @Access(AccessType.FIELD)
 public class Seat implements Serializable {
 
+    public enum SeatStatus {
+        Free, Reserved, Booked
+    }
+
     @Id
     @Enumerated(EnumType.STRING)
     private SeatRow _seatRow;
@@ -28,6 +32,9 @@ public class Seat implements Serializable {
     @Id
     private LocalDateTime _date;
 
+    @Enumerated(EnumType.STRING)
+    private SeatStatus _status;
+
     public Seat() {
 
     }
@@ -36,6 +43,7 @@ public class Seat implements Serializable {
         _seatRow = seatRow;
         _seatNumber = seatNumber;
         _date = date;
+        _status = SeatStatus.Free;
     }
 
     public SeatRow getRow() {
@@ -48,6 +56,14 @@ public class Seat implements Serializable {
 
     public LocalDateTime getDate() {
         return _date;
+    }
+
+    public void setReserved() {
+        _status = SeatStatus.Reserved;
+    }
+
+    public void setBooked() {
+        _status = SeatStatus.Booked;
     }
 
     @Override

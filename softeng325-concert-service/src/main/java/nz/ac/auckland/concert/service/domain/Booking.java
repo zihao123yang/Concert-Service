@@ -22,7 +22,7 @@ public class Booking {
 
     private LocalDateTime _dateTime;
 
-    @OneToMany(cascade=CascadeType.ALL)
+    @OneToMany(cascade=CascadeType.PERSIST)
     private Set<Seat> _seats;
 
     @Enumerated(EnumType.STRING)
