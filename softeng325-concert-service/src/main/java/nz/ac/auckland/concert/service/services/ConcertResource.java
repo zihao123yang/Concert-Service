@@ -172,11 +172,6 @@ public class ConcertResource {
             userDTO = new UserDTO(existingUser.getUserName(),existingUser.getPassword(), existingUser.getLastName(), existingUser.getFirstName());
         }
 
-//        System.out.println("username: " + existingUser.getUserName());
-//        System.out.println("password: " + existingUser.getPassword());
-//        System.out.println("first name: " + existingUser.getFirstName());
-//        System.out.println("last name: " + existingUser.getLastName());
-
 
         //create cookie with an authentication token for the User
         NewCookie cookie = makeCookie();
@@ -326,6 +321,10 @@ public class ConcertResource {
 
         Reservation reservation = entityManager.find(Reservation.class, reservationDTO.getId());
         if ((timestamp.getTime()- reservation.getTimestamp()) > (ConcertApplication.RESERVATION_EXPIRY_TIME_IN_SECONDS*1000)) {
+            Set<Seat> seatsToUnbook = reservation.getSeats();
+            for (Seat s: seatsToUnbook) {
+                s.setFree();
+            }
             entityManager.remove(reservation);
             throw new WebApplicationException(Response
                     .status(Response.Status.BAD_REQUEST)
@@ -387,7 +386,6 @@ public class ConcertResource {
         creditCard.showCardDetails();
         User user = authentication.getUser();
         user.setCreditCard(creditCard);
-        entityManager.persist(creditCard);
         transaction.commit();
 
         Response.ResponseBuilder builder;

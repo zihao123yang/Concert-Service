@@ -21,6 +21,9 @@ public class Seat implements Serializable {
         Free, Reserved, Booked
     }
 
+    @Version
+    private long version;
+
     @Id
     @Enumerated(EnumType.STRING)
     private SeatRow _seatRow;
@@ -64,6 +67,10 @@ public class Seat implements Serializable {
 
     public void setBooked() {
         _status = SeatStatus.Booked;
+    }
+
+    public void setFree() {
+        _status = SeatStatus.Free;
     }
 
     @Override

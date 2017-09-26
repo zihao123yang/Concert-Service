@@ -4,6 +4,7 @@ import nz.ac.auckland.concert.common.dto.*;
 import nz.ac.auckland.concert.service.domain.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -102,6 +103,22 @@ public class Mapper {
         }
 
         return bookingDTOs;
+    }
+
+    public static NewsItem newsItemDTOToNewsItem(NewsItemDTO dto) {
+
+        NewsItem newsItem = new NewsItem(dto.getId(), dto.getTimetamp(), dto.getContent());
+        return newsItem;
+    }
+
+    public static List<NewsItemDTO> newsItemTONewsItemDTO(List<NewsItem> newsItems) {
+        List<NewsItemDTO> newsItemsDTO = new ArrayList<>();
+        for (NewsItem n : newsItems) {
+            NewsItemDTO newsItemDTO = new NewsItemDTO(n.getId(), n.getTimeStamp(), n.getContent());
+            newsItemsDTO.add(newsItemDTO);
+        }
+
+        return newsItemsDTO;
     }
 
 }

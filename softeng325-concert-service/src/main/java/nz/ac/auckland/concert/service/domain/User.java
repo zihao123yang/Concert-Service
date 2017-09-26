@@ -23,7 +23,6 @@ public class User {
 
     private String _lastName;
 
-    @OneToOne (cascade = {CascadeType.ALL})
     private CreditCard _creditCard;
 
     public User() {

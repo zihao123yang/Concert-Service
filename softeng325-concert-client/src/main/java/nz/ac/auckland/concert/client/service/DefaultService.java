@@ -16,27 +16,19 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
-import nz.ac.auckland.concert.common.dto.BookingDTO;
-import nz.ac.auckland.concert.common.dto.ConcertDTO;
-import nz.ac.auckland.concert.common.dto.CreditCardDTO;
-import nz.ac.auckland.concert.common.dto.PerformerDTO;
-import nz.ac.auckland.concert.common.dto.ReservationDTO;
-import nz.ac.auckland.concert.common.dto.ReservationRequestDTO;
-import nz.ac.auckland.concert.common.dto.UserDTO;
+import nz.ac.auckland.concert.common.dto.*;
 import nz.ac.auckland.concert.common.message.Messages;
 
 import javax.imageio.ImageIO;
 import javax.ws.rs.*;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.client.Invocation;
+import javax.ws.rs.client.*;
 import javax.ws.rs.core.*;
 
 
 public class DefaultService implements ConcertService {
 
 	private static String WEB_SERVICE_URI = "http://localhost:10000/services/concerts";
+	private static String SUBSCRIPTION_SERVICE_URI = "http://localhost:10000/services/subscription";
 	private String _cookieValue;
 
 	// AWS S3 access credentials for concert images.
@@ -52,6 +44,8 @@ public class DefaultService implements ConcertService {
 			.getProperty("user.home");
 	private static final String DOWNLOAD_DIRECTORY = USER_DIRECTORY
 			+ FILE_SEPARATOR + "images";
+
+	private NewsItemDTO _lastItemReceived;
 
 	@Override
 	public Set<ConcertDTO> getConcerts() throws ServiceException {
@@ -329,13 +323,38 @@ public class DefaultService implements ConcertService {
 
 	@Override
 	public void subscribeForNewsItems(NewsItemListener listener) {
-		throw new UnsupportedOperationException();
+		Client client = ClientBuilder.newClient();
+		final WebTarget target = client.target(SUBSCRIPTION_SERVICE_URI + "/subscribe");
+		target.request()
+				.cookie("subscriptionCheck", _cookieValue)
+				.async()
+				.get(new InvocationCallback<List<NewsItemDTO>>() {
+					public void completed(List<NewsItemDTO> newsItemDTOs) {
+						_lastItemReceived = newsItemDTOs.get(newsItemDTOs.size() - 1);
+
+						target.request()
+								.cookie("subscriptionCheck", _cookieValue + "/" + _lastItemReceived.getTimetamp().toString())
+								.async()
+								.get(this);
+						for (NewsItemDTO newsItem : newsItemDTOs) {
+							listener.newsItemReceived(newsItem);
+						}
+					}
+
+					public void failed(Throwable t) {
+					}
+				});
 		
 	}
 
 	@Override
 	public void cancelSubscription() {
-		throw new UnsupportedOperationException();
+		Client client = ClientBuilder.newClient();
+		final WebTarget target = client.target(SUBSCRIPTION_SERVICE_URI + "/unSubscribe");
+		target.request().cookie("subscriptionCheck", _cookieValue).async().delete();
+
+
+
 	}
 
 
@@ -348,9 +367,7 @@ public class DefaultService implements ConcertService {
 	private void processCookieFromResponse(Response response) {
 		String token = response.getCookies().get("userToken").getValue();
 		_cookieValue = token;
-
 	}
-
 
 	private Image downloadImage(PerformerDTO performer) {
 

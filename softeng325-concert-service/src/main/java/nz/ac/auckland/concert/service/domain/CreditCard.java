@@ -2,24 +2,19 @@ package nz.ac.auckland.concert.service.domain;
 
 import nz.ac.auckland.concert.common.dto.CreditCardDTO;
 
-import javax.persistence.Access;
-import javax.persistence.AccessType;
-import javax.persistence.Entity;
-import javax.persistence.Id;
+import javax.persistence.*;
 import java.time.LocalDate;
 
 /**
  * Created by zihaoyang on 20/09/17.
  */
-@Entity
+@Embeddable
 @Access(AccessType.FIELD)
 public class CreditCard {
 
 
     private CreditCardDTO.Type _type;
     private String _name;
-
-    @Id
     private String _number;
     private LocalDate _expiryDate;
 
