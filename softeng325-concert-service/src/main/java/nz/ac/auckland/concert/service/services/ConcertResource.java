@@ -1,11 +1,9 @@
 package nz.ac.auckland.concert.service.services;
 
-import com.sun.org.apache.regexp.internal.RE;
 import nz.ac.auckland.concert.common.dto.*;
 import nz.ac.auckland.concert.common.message.Messages;
 import nz.ac.auckland.concert.service.domain.*;
 import nz.ac.auckland.concert.service.util.TheatreUtility;
-import org.apache.http.auth.AUTH;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityTransaction;
@@ -62,7 +60,6 @@ public class ConcertResource {
     @Produces({javax.ws.rs.core.MediaType.APPLICATION_XML})
     public Response retrievePerformers() {
 
-        EntityManager entityManager = PersistenceManager.instance().createEntityManager();
         EntityTransaction transaction = entityManager.getTransaction();
         transaction.begin();
 
@@ -202,10 +199,8 @@ public class ConcertResource {
         EntityTransaction transaction = entityManager.getTransaction();
         transaction.begin();
 
-        System.out.println("cookie value: " + cookie.getValue());
         //if user is unauthenticated/no Cookie passed from client side, then throw Exception
         if (cookie.getValue().equals("")) {
-            System.out.println("hello");
             throw new WebApplicationException(Response
                     .status(Response.Status.UNAUTHORIZED)
                     .entity(Messages.UNAUTHENTICATED_REQUEST)
@@ -217,7 +212,6 @@ public class ConcertResource {
 
         // if the token provided by client side is not matched by one in the database, throw an Exception
         if (authentication == null) {
-            System.out.println("wrong one bro");
             throw new WebApplicationException(Response
                     .status(Response.Status.UNAUTHORIZED)
                     .entity(Messages.BAD_AUTHENTICATON_TOKEN)
@@ -231,7 +225,8 @@ public class ConcertResource {
                     .entity(Messages.RESERVATION_REQUEST_WITH_MISSING_FIELDS)
                     .build());
         }
-        //load the Concert for which the reservation request was made from the database
+
+        //load the Concert for which the reservation request was made from the database and get its dates
         Concert concert = entityManager.find(Concert.class, reservationRequest.getConcertId());
         Set<LocalDateTime> concertDates = concert.getLocalDateTimes();
 
@@ -243,14 +238,18 @@ public class ConcertResource {
                     .build());
         }
 
+        //removes any expired reservations from the table and frees the sets being reserved by these reservations
+        removeExpiredReservations(timestamp);
+
+        //create a list to set of SeatStatus to be used in the JPQL TypedQuery below
         List<Seat.SeatStatus> statusList = new ArrayList<>();
         statusList.add(Seat.SeatStatus.Booked);
         statusList.add(Seat.SeatStatus.Reserved);
         //load all the seats that have been booked on the date specified by the reservation request
-        //selecting by the date and time because there shouldn't be multiple concerts on at the same time
+        //assuming that this system is for one venue only, load all the seats for the particular date and time specified in the reservation request that are unavailable.
         TypedQuery<Seat> query = entityManager.createQuery("select s from Seat s where s._date = :date and s._status in :statusList", Seat.class)
                 .setParameter("date", reservationRequest.getDate())
-                .setParameter("statusList", statusList);
+                .setParameter("statusList", statusList);    //set parameter so that only booked or reserved seats are loaded
         List<Seat> seatsList = query.getResultList();
         //convert the List of Seats that have already been booked or reserved to a Set of SeatDTOs using method from the Mapper class
         Set<Seat> seats = new HashSet<>(seatsList);
@@ -263,6 +262,8 @@ public class ConcertResource {
                     .status(Response.Status.BAD_REQUEST).entity(Messages.INSUFFICIENT_SEATS_AVAILABLE_FOR_RESERVATION)
                     .build());
         }
+
+        // load all the seats that the user wants to reserve from the database and set their status to being reserved
         Set<Seat> reservedSeats = new HashSet<>();
         for (SeatDTO s : availableSeats) {
             TypedQuery<Seat> reserveQuery = entityManager.createQuery("select s from Seat s where s._seatRow = :seatRow and s._seatNumber = :seatNumber and s._date = :date", Seat.class)
@@ -274,8 +275,6 @@ public class ConcertResource {
             reservedSeats.add(seat);
         }
 
-        //convert the Set of SeatDTOs to be reserved to a Set of Seats
-//        Set<Seat> seatsToReserve = Mapper.seatDTOsToSeats(availableSeats, reservationRequest.getDate());
         //create the reservation on the free seats obtained previously
         Reservation reservation = new Reservation(reservationRequest.getNumberOfSeats(), reservationRequest.getSeatType(),reservationRequest.getDate(), reservedSeats, concert, authentication.getUser(), timestamp.getTime());
 
@@ -300,10 +299,13 @@ public class ConcertResource {
     @Consumes({javax.ws.rs.core.MediaType.APPLICATION_XML})
     public Response confirmReservation(ReservationDTO reservationDTO, @CookieParam("userToken") Cookie cookie) {
 
+        //current timestamp that will be used to compare with the one stored in the reservation
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+
         EntityTransaction transaction = entityManager.getTransaction();
         transaction.begin();
 
+        //if the user is not authenticated, throw an exception
         if (cookie.getValue().equals("")) {
             throw new WebApplicationException(Response
                     .status(Response.Status.UNAUTHORIZED)
@@ -311,6 +313,7 @@ public class ConcertResource {
                     .build());
         }
 
+        // if the authentication token provided by the user is not the same as the one in the database, throw and exception
         AuthenticationDetail authentication = loadAuthenticationDetail(cookie.getValue());
         if (authentication == null) {
             throw new WebApplicationException(Response
@@ -319,8 +322,9 @@ public class ConcertResource {
                     .build());
         }
 
+        // if the reservation has expired, through an expired
         Reservation reservation = entityManager.find(Reservation.class, reservationDTO.getId());
-        if ((timestamp.getTime()- reservation.getTimestamp()) > (ConcertApplication.RESERVATION_EXPIRY_TIME_IN_SECONDS*1000)) {
+        if (reservation == null || (timestamp.getTime()- reservation.getTimestamp()) > (ConcertApplication.RESERVATION_EXPIRY_TIME_IN_SECONDS*1000)) {
             Set<Seat> seatsToUnbook = reservation.getSeats();
             for (Seat s: seatsToUnbook) {
                 s.setFree();
@@ -332,6 +336,7 @@ public class ConcertResource {
                     .build());
         }
 
+        //if the user does not have a registered credit card, throw an exception
         if (!reservation.getUser().hasCreditCard()) {
             throw new WebApplicationException(Response.status(Response
                     .Status.BAD_REQUEST)
@@ -339,11 +344,12 @@ public class ConcertResource {
                     .build());
         }
 
+        //set the sets to be booked from reserved to booked
         Set<Seat> reservedSeats = reservation.getSeats();
         for (Seat s : reservedSeats) {
             s.setBooked();
-            System.out.println("SeatRow:"+s.getRow() + "   seatnumber"+s.getNumber()+"     date:"+s.getDate());
         }
+        //create a new booking with the seats that were reserved previously and remove the reservation from the table
         Booking booking = new Booking(reservation.getConcert(), reservation.getDate(), reservedSeats, reservation.getPriceBand());
         entityManager.remove(reservation);
         entityManager.persist(booking);
@@ -366,6 +372,7 @@ public class ConcertResource {
         EntityTransaction transaction = entityManager.getTransaction();
         transaction.begin();
 
+        // if the user is not authenticated, throw an exception
         if (cookie.getValue().equals("")) {
             throw new WebApplicationException(Response
                     .status(Response.Status.UNAUTHORIZED)
@@ -373,6 +380,7 @@ public class ConcertResource {
                     .build());
         }
 
+        //if the authentication token provided by user is not recognised by the remote service, throw an exception
         AuthenticationDetail authentication = loadAuthenticationDetail(cookie.getValue());
         if (authentication == null) {
             throw new WebApplicationException(Response
@@ -381,9 +389,9 @@ public class ConcertResource {
                     .build());
         }
 
-        System.out.println("name:" + creditCardDTO.getName() + ", number:" + creditCardDTO.getNumber()+ ", type" + creditCardDTO.getType());
+        //convert CreditCardDTO to CreditCard
         CreditCard creditCard = Mapper.creditCardDTOToCreditCard(creditCardDTO);
-        creditCard.showCardDetails();
+        //get the user and set its credit card to the one created
         User user = authentication.getUser();
         user.setCreditCard(creditCard);
         transaction.commit();
@@ -403,6 +411,7 @@ public class ConcertResource {
         EntityTransaction transaction = entityManager.getTransaction();
         transaction.begin();
 
+        //if the user is not authenticated, throw an exception
         if (cookie.getValue().equals("")) {
             throw new WebApplicationException(Response
                     .status(Response.Status.UNAUTHORIZED)
@@ -410,7 +419,7 @@ public class ConcertResource {
                     .build());
         }
 
-
+        //if the authentication token provided by user is not recognised by the remote service, throw an exception
         AuthenticationDetail authentication = loadAuthenticationDetail(cookie.getValue());
         if (authentication == null) {
             throw new WebApplicationException(Response
@@ -419,14 +428,15 @@ public class ConcertResource {
                     .build());
         }
 
+        //load all bookings from the database
         TypedQuery<Booking> query = entityManager.createQuery("select b from Booking b", Booking.class);
         List<Booking> bookings = query.getResultList();
 
-        System.out.println("booking size: " + bookings.size());
-
+        //convert the list of bookings from the database to a set of BookingDTOs to send back to client side
         Set<BookingDTO> bookingDTOs = Mapper.bookingsToBookingDTOs(bookings);
 
         Response.ResponseBuilder builder;
+        //create a GenericEntity contain the Set of BookingDTOs which is set as the entity of the Response
         GenericEntity<Set<BookingDTO>> entity = new GenericEntity<Set<BookingDTO>> (bookingDTOs) { };
         builder = Response.ok(entity);
 
@@ -463,15 +473,33 @@ public class ConcertResource {
 
     }
 
+    //this method is for creating a new cookie to send back to client when a new user is created or a user is authenticated on login
     private NewCookie makeCookie(){
 
         NewCookie newCookie = new NewCookie("userToken", UUID.randomUUID().toString());
         return newCookie;
     }
 
+    //gets the authentication details of the user from the database
     private AuthenticationDetail loadAuthenticationDetail(String token) {
         AuthenticationDetail authenticationDetail = entityManager.find(AuthenticationDetail.class, token);
         return authenticationDetail;
+    }
+
+    //this method gets all the reservations from the database and checks if any have expired, if so remove them from the database, and set their seats to being free
+    //there shouldn't be too many reservations being loaded as they are constantly being removed when expired and changed to bookings
+    private void removeExpiredReservations(Timestamp timestamp) {
+        TypedQuery<Reservation> query = entityManager.createQuery("select r from Reservation r", Reservation.class);
+        List<Reservation> reservations = query.getResultList();
+
+        for (Reservation r : reservations) {
+            if ((timestamp.getTime() - r.getTimestamp()) > ConcertApplication.RESERVATION_EXPIRY_TIME_IN_SECONDS * 1000) {
+                for (Seat s: r.getSeats()) {
+                    s.setFree();
+                }
+                entityManager.remove(r);
+            }
+        }
     }
 
 }

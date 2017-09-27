@@ -1,7 +1,10 @@
 package nz.ac.auckland.concert.service.domain;
 
+import nz.ac.auckland.concert.common.dto.ConcertDTO;
 import nz.ac.auckland.concert.common.types.Genre;
 import nz.ac.auckland.concert.common.types.PriceBand;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import javax.persistence.*;
 import java.math.BigDecimal;
@@ -69,6 +72,31 @@ public class Concert {
 
     public Map<PriceBand, BigDecimal> getConcertTarifs() {
         return _concertTarif;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof ConcertDTO))
+            return false;
+        if (obj == this)
+            return true;
+
+        Concert rhs = (Concert) obj;
+        return new EqualsBuilder().
+                append(_title, rhs._title).
+                append(_dates, rhs._dates).
+                append(_concertTarif, rhs._concertTarif).
+                append(_performers, rhs._performers).
+                isEquals();
+    }
+
+    @Override
+    public int hashCode() {
+        return new HashCodeBuilder(17, 31).
+                append(_id).
+                append(_title).
+                append(_dates).
+                hashCode();
     }
 
 }

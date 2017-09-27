@@ -4,6 +4,10 @@ package nz.ac.auckland.concert.service.domain;
  * Created by zihaoyang on 20/09/17.
  */
 
+import nz.ac.auckland.concert.common.dto.UserDTO;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+
 import javax.persistence.*;
 import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.NewCookie;
@@ -69,6 +73,32 @@ public class User {
         }
 
         return false;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof User))
+            return false;
+        if (obj == this)
+            return true;
+
+        User rhs = (User) obj;
+        return new EqualsBuilder().
+                append(_userName, rhs._userName).
+                append(_password, rhs._password).
+                append(_firstName, rhs._firstName).
+                append(_lastName, rhs._lastName).
+                isEquals();
+    }
+
+    @Override
+    public int hashCode() {
+        return new HashCodeBuilder(17, 31).
+                append(_userName).
+                append(_password).
+                append(_firstName).
+                append(_password).
+                hashCode();
     }
 
 }

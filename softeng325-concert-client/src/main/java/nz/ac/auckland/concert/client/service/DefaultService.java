@@ -125,14 +125,12 @@ public class DefaultService implements ConcertService {
 			int responseCode = response.getStatus();
 			switch (responseCode) {
 				case 400:
-					System.out.println("hi");
 					String errorMessage = response.readEntity(String.class);
 					throw new ServiceException(errorMessage);
 				case 201:
 					user = response.readEntity(UserDTO.class);
 					processCookieFromResponse(response);
 			}
-			System.out.println("cookie user" + _cookieValue);
 			return user;
 
 		} finally {
@@ -168,7 +166,6 @@ public class DefaultService implements ConcertService {
 					processCookieFromResponse(response);
 
 			}
-			System.out.println("cookie auth" + _cookieValue);
 
 			return user;
 
@@ -214,7 +211,6 @@ public class DefaultService implements ConcertService {
 	public ReservationDTO reserveSeats(ReservationRequestDTO reservationRequest) throws ServiceException {
 		Response response = null;
 		Client client = ClientBuilder.newClient();
-		System.out.println("cookie" + _cookieValue);
 		try {
 
 			Invocation.Builder builder = client.target(WEB_SERVICE_URI + "/reserve").request()

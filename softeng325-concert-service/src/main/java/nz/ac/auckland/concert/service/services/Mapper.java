@@ -81,7 +81,6 @@ public class Mapper {
             Seat seat = new Seat(s.getRow(), s.getNumber(), date);
             seats.add(seat);
         }
-
         return seats;
     }
 
@@ -120,5 +119,6 @@ public class Mapper {
 
         return newsItemsDTO;
     }
+
 
 }

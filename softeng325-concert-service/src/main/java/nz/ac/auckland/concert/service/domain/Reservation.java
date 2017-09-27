@@ -1,7 +1,10 @@
 package nz.ac.auckland.concert.service.domain;
 
+import nz.ac.auckland.concert.common.dto.ReservationDTO;
 import nz.ac.auckland.concert.common.dto.SeatDTO;
 import nz.ac.auckland.concert.common.types.PriceBand;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import javax.persistence.*;
 import java.sql.Timestamp;
@@ -82,4 +85,34 @@ public class Reservation {
     }
 
 
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof ReservationDTO))
+            return false;
+        if (obj == this)
+            return true;
+
+        Reservation rhs = (Reservation) obj;
+        return new EqualsBuilder().
+                append(_id, rhs._id).
+                append(_seats, rhs._seats).
+                append(_seatType, rhs._seatType).
+                append(_date, rhs._date).
+                append(_concert, rhs._concert).
+                append(_user, rhs._user).
+                append(_timestamp, rhs._timestamp).
+                isEquals();
+    }
+
+    @Override
+    public int hashCode() {
+        return new HashCodeBuilder(17, 31).
+                append(_id).
+                append(_date).
+                append(_seatType).
+                append(_concert).
+                append(_user).
+                append(_seats).
+                hashCode();
+    }
 }
